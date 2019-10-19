@@ -6,38 +6,49 @@
 
 /* 
  * File:   Pe.cpp
- * Author: parfait
+ * Author: Parfait Tokponnon <pafait.tokponnon@uclouvain.be>
+ * The Log : provide a doubled linked circular queue to hold all created logs
  * 
  * Created on 3 octobre 2018, 14:34
  */
 
 #include "log.hpp"
 #include "string.hpp"
-size_t Log::log_number = 0, Log::log_entry_number = 0;
+#include "log_store.hpp"
+
+size_t Log::log_number = 0, Log_entry::log_entry_number = 0;
 bool Log::log_on;
 Queue<Log> Log::logs;
 
-/**
- * @param pd_name
- * @param ec_name
- * @param n :
- */
-Log::Log(const char* pd_name, const char* ec_name, uint64 n) : prev(nullptr), next(nullptr){
-    char buff[strlen(pd_name)+strlen(ec_name) + STR_MAX_LENGTH];
-    String::print(buff, "Pe_num %llu Pd %s Ec %s", n, pd_name, ec_name);
-    info = new String(buff);
+Log::Log(const char* title) : prev(nullptr), next(nullptr){
+    info = new String(title);
     numero = log_number++;
 };
 
+/**
+ * Add new log. If the log at cursor index does have a string, it just replaces 
+ * its content, if not, it creates a new one. The creation process is supposed to 
+ * be called only on time
+ * @param pd_name
+ * @param ec_name
+*/
 void Log::add_log(const char* pd_name, const char* ec_name){
     if(!log_on)
         return;
     if(log_number > LOG_MAX)
         free_logs(LOG_PERCENT_TO_BE_LEFT, true);
-    Log* log = new Log(pd_name, ec_name, 0);
+    char buff[strlen(pd_name)+strlen(ec_name) + STR_MAX_LENGTH];
+    String::print(buff, "Pe_num %llu Pd %s Ec %s", 0ull, pd_name, ec_name);
+    Log* log = new Log(buff);
     logs.enqueue(log);
 }
 
+/**
+ * Frees (100 - left) percent logs (if in_percent == true) or left logs (if in_percent == false)
+ * in order to reclaim their memory. The function start by the oldest log. 
+ * @param left
+ * @param in_percent
+ */
 void Log::free_logs(size_t left, bool in_percent) {
     if(!log_number)
         return;
@@ -54,7 +65,8 @@ void Log::free_logs(size_t left, bool in_percent) {
     while (left < log_number && logs.dequeue(log = logs.head())) {
         delete log;
     }
-    
+
+//Renumber the remaining logs    
     size_t i = 0, log_entry_count = 0;
     log = logs.head();
     Log *n = nullptr;
@@ -65,13 +77,20 @@ void Log::free_logs(size_t left, bool in_percent) {
         log = (n == logs.head()) ? nullptr : n;
     }
     
-    assert (log_number == left && log_entry_number == log_entry_count);
+    assert (log_number == left && Log_entry::log_entry_number == log_entry_count);
 }
 
-void Log::dump(char const *funct_name, bool from_tail, uint32 log_depth){   
+/**
+ * 
+ * @param funct_name : Where we come from
+ * @param from_tail : From the first log (from_tail == false) or from the last
+ * @param log_depth : the number of log to be printed; default is 5; we will print
+ * all logs if this is 0
+ */
+void Log::dump(char const *funct_name, bool from_tail, size_t log_depth){   
     if(!logs.head())
         return;
-    printf("%s Log %lu log entries %lu\n", funct_name, log_number, log_entry_number);
+    printf("%s Log %lu log entries %lu\n", funct_name, log_number, Log_entry::log_entry_number);
     Log *p = from_tail ? logs.tail() : logs.head(), *end = from_tail ? logs.tail() : logs.head(), 
             *n = nullptr;
     if(log_depth == 0)
@@ -85,6 +104,12 @@ void Log::dump(char const *funct_name, bool from_tail, uint32 log_depth){
     }
 }
 
+
+/**
+ * This will add a log entry with new string the first time the log at the cursor
+ * is used, subsequent times it will just replace its content
+ * @param log
+ */
 void Log::add_log_entry(const char* log){
     if(!log_on)
         return;    
@@ -97,10 +122,47 @@ void Log::add_log_entry(const char* log){
     l->log_size++;
 }
 
+/**
+ * Append new string to the log info. It does this by destroying the last buffer
+ * and allocating a new one, wide enough, to hold the the old and the new strings
+ * @param s
+ */
 void Log::append_log_info(const char* i){
     if(!log_on)
         return;    
     Log *l = logs.tail();
     assert(l);
     l->info->append(i);
+}
+
+/**
+ * Prints this log's entries, if queue were used, print from log_entries, else,
+ * logstore was used, print from logstore, 
+ * @param from_tail
+ */
+void Log::print(bool from_tail){
+    printf("LOG %lu size %lu %s\n", numero, log_size, info->get_string());
+    if(log_number) {
+        Log_entry *log_info = from_tail ? log_entries.tail() : log_entries.head(), *end = from_tail ? 
+            log_entries.tail() : log_entries.head(), 
+            *n = nullptr;
+        while(log_info) {
+            log_info->print();
+            n = from_tail ? log_info->prev : log_info->next;
+            log_info = (n == end) ? nullptr : n;
+        }
+    } else {            
+        Logentrystore::dump(from_tail, start_in_store, log_size);
+    }
+}
+
+/**
+ * Add a log entry. This constructor is to be used only for queue logentries. 
+ * @param l
+ */
+Log_entry::Log_entry(char* l) {
+    if(log_entry_number > LOG_ENTRY_MAX)
+        Log::free_logs(LOG_PERCENT_TO_BE_LEFT, true);
+    log_entry = new String(l);
+    log_entry_number++;
 }

@@ -33,9 +33,13 @@ Block* Block::cursor;
 
 Queue<Block> Block::free_blocks, Block::used_blocks;
 
+/**
+ * Create a new string and allocate a new buffer for it
+ * @param p
+ */
 String::String(const char *p) : length(strlen(p)){
-    buffer = new Buffer(length);
-    copy_string(buffer->block->start, p, length);
+    buffer = Block::alloc(length+1); // +1 is for the \0 string null character at the end     
+    copy_string(buffer->start, p, length);
 }
 
 int String::vprintf_help(int c, void **ptr) {
@@ -431,12 +435,41 @@ void Block::defragment() {
     cursor = new Block(start_ptr1, memory_size - total_used_size, true);
 }
 
+/**
+ * Append a string of character to this string. The old buffer is destroyed; a 
+ * new one is allocated, wide enough to hold the entire new string of characters
+ * @param s
+ */
 void String::append(const char* s){
-    size_t len1 = strlen(buffer->block->start), len2 = strlen(s);
-    Buffer* old_buffer = buffer;
-    buffer = new Buffer(len1 + len2 + 2);
-    copy_string(buffer->block->start, old_buffer->block->start, len1);
-    *(buffer->block->start + len1) = ' ';
-    copy_string(buffer->block->start + len1 + 1, s, len2);
-    delete old_buffer;
+    size_t len1 = strlen(buffer->start), len2 = strlen(s);
+    Block* old_block = buffer;
+    buffer = Block::alloc(len1 + len2 + 2);
+    copy_string(buffer->start, old_block->start, len1);
+    *(buffer->start + len1) = ' ';
+    copy_string(buffer->start + len1 + 1, s, len2);
+    delete old_block;
 }
+
+/**
+ * Replace this string old buffer with a new one and fill it with the provided 
+ * string of character s
+ * @param s
+ */
+void String::replace_with(const char* s) {
+    length = strlen(s);
+    if(buffer)
+        buffer->~Block();
+    buffer = Block::alloc(length + 1);
+    copy_string(buffer->start, s, length);
+}
+
+/**
+ * Frees this string's buffer but do not destroy it.
+ */
+void String::free_block() {
+    assert(buffer);
+    buffer->~Block();
+    buffer = nullptr;
+    length = 0;
+}
+  

@@ -14,15 +14,21 @@
 #include <cstdlib>
 #include <cstdio>
 #include "log.hpp"
-#include "log_store.hpp"
+#include <csignal> 
 
 using namespace std;
 
+void signal_handler(int signal_num ) { 
+   Log::dump("CTRL C", false, 0); 
+   exit(0);
+} 
+  
 /*
  * 
  */
 int main(int argc, char** argv) {
     Log::log_on = true;
+    signal(SIGINT, signal_handler);   
     int i = 0;
     char chaine[3][STR_MAX_LENGTH] = {"Première phrase courte", 
     "Deuxieme phrase plus longue que 1er", 
@@ -30,13 +36,13 @@ int main(int argc, char** argv) {
     while(1){
         char s[STR_MAX_LENGTH];
         snprintf(s, STR_MAX_LENGTH, "PD %d EC %d", i, i);
-        Logstore::add_log(s, " ");
+        Log::add_log(s, " ");
         int n = rand()%10; 
         for(int j=0; j<n; j++){
             int k = rand()%3;
             char d[STR_MAX_LENGTH];
             snprintf(d, STR_MAX_LENGTH, "Log_entry %d %s", j, chaine[k]);
-            Logstore::add_log_entry(d);
+            Log::add_log_entry(d);
         }
         i++;
     }

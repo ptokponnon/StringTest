@@ -167,7 +167,6 @@ inline size_t strlen(const char* str){
 }
 
 class Block {
-    friend class Buffer;
     friend class String;
     friend class Queue<Block>;
 private:
@@ -184,6 +183,14 @@ private:
     Block *prev = nullptr; // previous block in the free_blocks list
     Block *next = nullptr; // next block in the free_blocks list
     
+    Block(char* st, size_t s, bool is_f) : start(st), size(s), is_free(is_f) {
+        if(is_f)
+            free_blocks.enqueue(this);
+        else
+            used_blocks.enqueue(this);
+        
+    }
+
     /**
      * Called when the first block is requested to allocate the heap.
      * At this stage, free_blocks is constitued of one big block of 
@@ -215,14 +222,6 @@ public:
         
     Block &operator=(Block const &);
     
-    Block(char* st, size_t s, bool is_f) : start(st), size(s), is_free(is_f) {
-        if(is_f)
-            free_blocks.enqueue(this);
-        else
-            used_blocks.enqueue(this);
-        
-    }
-
     ~Block() { 
         if(!is_free) free(); 
     };
@@ -233,26 +232,6 @@ public:
     static size_t left();
     static void print();
     static void defragment();
-};
-
-class Buffer {
-    friend class String;
-private: 
-    
-    Block* block = nullptr;
-    size_t size = 0;
-    
-public:
-    
-    Buffer(const Buffer& orig);
-        
-    Buffer &operator=(Buffer const &);
-    
-    Buffer(size_t s) {
-        size = s+1; // +1 is for the \0 string null character at the end 
-        block = Block::alloc(size); 
-    }
-    ~Buffer() { block->~Block(); }
 };
 
 class String {
@@ -267,7 +246,7 @@ private:
         FLAG_ZERO_PAD   = 1UL << 2,
     };
     size_t length;
-    Buffer *buffer = nullptr;
+    Block* buffer = nullptr;
     static unsigned count;
     static void print_num (uint64, unsigned, unsigned, unsigned, void**);
     static void print_str (char const *, unsigned, unsigned, void**);
@@ -279,13 +258,22 @@ private:
 public:
     
     String(const String& orig);
+    String(){}
         
     String &operator=(String const &);
 
     String(const char *);
-    ~String() { delete buffer; }
-    char* get_string() {return buffer->block->start;}
+    ~String() { buffer->~Block(); }
+    char* get_string() {
+        if(buffer)
+            return buffer->start;
+        else {
+            return nullptr;
+        }
+    }
     void append(const char*);
+    void replace_with(const char*);
+    void free_block();
     
     FORMAT (2,3)
     static unsigned print (char *, char const *, ...);
