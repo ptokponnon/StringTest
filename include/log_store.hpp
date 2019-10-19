@@ -20,7 +20,7 @@ class Logentrystore {
     friend class Logstore;
 private:
     static Log::Log_entry logentries[LOG_ENTRY_MAX];
-    static size_t cursor, start, end;
+    static size_t cursor, start;
     
 public:
     Logentrystore();
@@ -36,7 +36,7 @@ public:
 class Logstore {
 private:
     static Log logs[LOG_MAX];
-    static size_t cursor, start, end;
+    static size_t cursor, start;
     
 public:
     Logstore();

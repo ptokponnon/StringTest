@@ -13,8 +13,8 @@
 
 #include <cstdlib>
 #include <cstdio>
-
 #include "log.hpp"
+#include "log_store.hpp"
 
 using namespace std;
 
@@ -30,13 +30,13 @@ int main(int argc, char** argv) {
     while(1){
         char s[STR_MAX_LENGTH];
         snprintf(s, STR_MAX_LENGTH, "PD %d EC %d", i, i);
-        Log::add_log(s, " ");
+        Logstore::add_log(s, " ");
         int n = rand()%10; 
         for(int j=0; j<n; j++){
             int k = rand()%3;
             char d[STR_MAX_LENGTH];
             snprintf(d, STR_MAX_LENGTH, "Log_entry %d %s", j, chaine[k]);
-            Log::add_log_entry(d);
+            Logstore::add_log_entry(d);
         }
         i++;
     }

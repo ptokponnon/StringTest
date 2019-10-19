@@ -65,6 +65,23 @@ class Queue
             }
         }
 
+        /**
+         * 
+         * @return the size of the queue
+         */
+        ALWAYS_INLINE
+        inline size_t size ()
+        {
+            T *c = headptr, *n = nullptr;
+            size_t count = 0;
+            while(c) {
+                count++;
+                n = c->next;
+                c = (n == headptr) ? nullptr : n;
+            }
+            return count;
+        }
+        
         ALWAYS_INLINE
         inline bool dequeue (T *t)
         {

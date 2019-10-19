@@ -21,6 +21,7 @@
 #include "string.hpp"
 #include "bits.hpp"
 #include "log.hpp"
+#include "log_store.hpp"
 #include "panic.hpp"
 
 unsigned String::count;
@@ -238,7 +239,6 @@ Block* Block::alloc(size_t nb_bytes) {
                 cursor = curr->next;
                 assert(free_blocks.dequeue(curr));
                 used_blocks.enqueue(curr);
-//        printf("%lu %p required %lx left %lx\n", curr->numero, curr->start, nb_of_bytes, left());
             } else if (curr->size > nb_bytes) { 
                 //Truncate it in order to create a new block and set it not free.
                 Block *b = new Block(curr->start, nb_bytes, false);
@@ -252,7 +252,7 @@ Block* Block::alloc(size_t nb_bytes) {
             }
         }
     }
-    
+//    printf("curr %p freeblock %p required %lx left %lx\n", curr->start, free_blocks.head()->start, nb_bytes, left());    
     has_been_freed = false;
     return curr;    
 }
@@ -262,9 +262,14 @@ Block* Block::alloc(size_t nb_bytes) {
  * and try to alloc again
  */
 Block* Block::realloc(size_t nb_bytes) {
-    printf("No sufficient memory to allocate to string, Tour %lu required %lu\n", tour, nb_bytes);
     // Heap exhausted, free 100% - LOG_PERCENT_TO_BE_LEFT of log to recover fresh memory. 
     Log::free_logs(LOG_PERCENT_TO_BE_LEFT, true);        
+    Logstore::free_logs(LOG_PERCENT_TO_BE_LEFT, true);   
+    size_t l = left(), s = free_blocks.size();
+    printf("No sufficient memory to allocate to string, Tour %lu required %lu "
+            "left %lu size %lu moyenne %lu\n", tour, nb_bytes, l, s, l/s);
+    if(left() / free_blocks.size() < 200)
+        defragment();        
     tour++;
     cursor = free_blocks.head();
     if(has_been_freed) {
@@ -385,7 +390,8 @@ size_t Block::left() {
  */
 void Block::print() { 
     Block *b = free_blocks.head(), *n = nullptr;
-    assert(b);
+    if(!b)
+        return;
     printf("==========================================================\n");
     while (b) {
         printf("Prev %p :: B %p (%p -> %p : %lx) :: Next %p\n", 
