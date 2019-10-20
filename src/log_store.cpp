@@ -29,17 +29,15 @@ Logstore::~Logstore() {
  * @param pd_name
  * @param ec_name
  */
-void Logstore::add_log(const char* pd_name, const char* ec_name){
+void Logstore::add_log(const char* log){
     if(!Log::log_on)
         return;
     size_t curr = cursor%static_cast<size_t>(LOG_MAX);
-    char buff[strlen(pd_name)+strlen(ec_name) + STR_MAX_LENGTH];
-    String::print(buff, "Pe_num %u Pd %s Ec %s", 0, pd_name, ec_name);
     Log *l = &logs[curr];
     if(l->info) {
-        l->info->replace_with(buff);        
+        l->info->replace_with(log);        
     } else {
-        l->info = new String(buff);
+        l->info = new String(log);
     }
     l->numero = log_number++;
     cursor++;
@@ -146,7 +144,7 @@ void Logstore::dump(char const *funct_name, bool from_tail, size_t log_depth){
     } else {
         size_t i_start = start%log_max, i_end = log_depth ? (start + log_depth)%log_max : cursor%log_max;
         size_t s = i_start, e = i_start < i_end ? i_end : log_max;
-        printf("start %lu cursor %lu log_depth %lu i_start %lu i_end %lu s %lu e %lu", start, cursor, log_depth, i_start, i_end, s, e);
+//        printf("start %lu cursor %lu log_depth %lu i_start %lu i_end %lu s %lu e %lu\n", start, cursor, log_depth, i_start, i_end, s, e);
         for(size_t i = s; i < e; i++) {
             logs[i].print(false);
             if(i_start > i_end && i == log_max - 1){
@@ -238,4 +236,52 @@ void Logstore::append_log_info(const char* s){
     Log* l = &logs[(cursor-1)%log_max];
     assert(l->info->get_string());
     l->info->append(s);
+}
+
+/**
+ * store new log to the logs'buffer
+ * @param s
+ */
+void Logstore::add_log_in_buffer(const char* s){
+    if(!Log::log_on)
+        return;    
+    size_t size = strlen(s); 
+    copy_string(Log::log_buffer_cursor, s);    
+    *(Log::log_buffer_cursor + size) = ' '; // replace the final '\0' by ' '
+    Log::log_buffer_cursor += size + 1; 
+}
+
+/**
+ * store new log entry to the entries'buffer
+ * @param s
+ */
+void Logstore::add_entry_in_buffer(const char* s){
+    if(!Log::log_on)
+        return;    
+    size_t size = strlen(s)+1; // +1 for the final \n
+    copy_string_nl(Log::entry_buffer_cursor, s, size);    
+    Log::entry_buffer_cursor += size; 
+}
+
+/**
+ * Commit log buffer and entries buffer
+ */
+void Logstore::commit_buffer(){
+    if(!Log::log_on)
+        return;    
+    *Log::log_buffer_cursor = '\0';
+    add_log(Log::log_buffer);
+    memset(Log::log_buffer, 0, Log::log_buffer_cursor - Log::log_buffer + 1);
+    Log::log_buffer_cursor = Log::log_buffer;
+    
+    *Log::entry_buffer_cursor = '\0';
+    size_t log_max = static_cast<size_t>(LOG_MAX);
+    Log* l = &logs[(cursor-1)%log_max];
+    assert(l->info->get_string());
+    if(!l->log_size)
+        l->start_in_store = Logentrystore::cursor;
+    l->log_size++;
+    Logentrystore::add_log_entry(Log::entry_buffer);
+    memset(Log::entry_buffer, 0, Log::entry_buffer_cursor - Log::entry_buffer + 1);
+    Log::entry_buffer_cursor = Log::entry_buffer;
 }

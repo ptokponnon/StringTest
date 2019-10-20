@@ -19,6 +19,10 @@
 size_t Log::log_number = 0, Log_entry::log_entry_number = 0;
 bool Log::log_on;
 Queue<Log> Log::logs;
+char *Log::entry_buffer = reinterpret_cast<char*>(malloc(PAGE_SIZE)), 
+        *Log::log_buffer = reinterpret_cast<char*>(malloc(PAGE_SIZE)),
+        *Log::entry_buffer_cursor = Log::entry_buffer,
+        *Log::log_buffer_cursor = Log::log_buffer;
 
 Log::Log(const char* title) : prev(nullptr), next(nullptr){
     info = new String(title);
@@ -32,14 +36,12 @@ Log::Log(const char* title) : prev(nullptr), next(nullptr){
  * @param pd_name
  * @param ec_name
 */
-void Log::add_log(const char* pd_name, const char* ec_name){
+void Log::add_log(const char* s){
     if(!log_on)
         return;
     if(log_number > LOG_MAX)
         free_logs(LOG_PERCENT_TO_BE_LEFT, true);
-    char buff[strlen(pd_name)+strlen(ec_name) + STR_MAX_LENGTH];
-    String::print(buff, "Pe_num %llu Pd %s Ec %s", 0ull, pd_name, ec_name);
-    Log* log = new Log(buff);
+    Log* log = new Log(s);
     logs.enqueue(log);
 }
 
@@ -165,4 +167,50 @@ Log_entry::Log_entry(char* l) {
         Log::free_logs(LOG_PERCENT_TO_BE_LEFT, true);
     log_entry = new String(l);
     log_entry_number++;
+}
+
+/**
+ * store new log to the logs'buffer
+ * @param s
+ */
+void Log::add_log_in_buffer(const char* s){
+    if(!Log::log_on)
+        return;    
+    size_t size = strlen(s); 
+    copy_string(Log::log_buffer_cursor, s);    
+    *(Log::log_buffer_cursor + size) = ' '; // replace the final '\0' by ' '
+    Log::log_buffer_cursor += size + 1; 
+}
+
+/**
+ * store new log entry to the entries'buffer
+ * @param s
+ */
+void Log::add_entry_in_buffer(const char* s){
+    if(!Log::log_on)
+        return;    
+    size_t size = strlen(s)+1; // +1 for the final \n
+    copy_string_nl(Log::entry_buffer_cursor, s, size);    
+    Log::entry_buffer_cursor += size; 
+}
+
+/**
+ * Commit log buffer and entries buffer
+ */
+void Log::commit_buffer(){
+    if(!Log::log_on)
+        return;    
+    *Log::log_buffer_cursor = '\0';
+    add_log(Log::log_buffer);
+    memset(Log::log_buffer, 0, Log::log_buffer_cursor - Log::log_buffer + 1);
+    Log::log_buffer_cursor = Log::log_buffer;
+    
+    *Log::entry_buffer_cursor = '\0';
+    Log* l = logs.tail();
+    assert(l);
+    Log_entry *log_info = new Log_entry(Log::entry_buffer);
+    l->log_entries.enqueue(log_info);  
+    l->log_size++;
+    memset(Log::entry_buffer, 0, Log::entry_buffer_cursor - Log::entry_buffer + 1);
+    Log::entry_buffer_cursor = Log::entry_buffer;
 }

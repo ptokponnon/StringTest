@@ -41,7 +41,7 @@ public:
     Logstore(const Logstore& orig);
     ~Logstore();
     
-    static void add_log(const char*, const char*);
+    static void add_log(const char*);
         
     static void free_logs(size_t=0, bool=false);
         
@@ -50,5 +50,11 @@ public:
     static void add_log_entry(const char*);
     
     static void append_log_info(const char*);
-        
+    
+    static void add_entry_in_buffer(const char*);
+    
+    static void add_log_in_buffer(const char*);
+    
+    static void commit_buffer();
+    
 };

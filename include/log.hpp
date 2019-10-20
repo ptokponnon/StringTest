@@ -55,7 +55,7 @@ class Log_entry {
     Log_entry(char* l);
 
     void print(){
-        printf("   %s\n", log_entry->get_string());
+        printf("%s\n", log_entry->get_string());
     }
 
     static size_t get_total_log_size() { return log_entry_number; }
@@ -67,7 +67,7 @@ class Log {
     friend class Logentrystore;
     friend class Logstore;
     static Queue<Log> logs;
-    
+    static char *entry_buffer, *entry_buffer_cursor, *log_buffer, *log_buffer_cursor;
     static size_t log_number;
     
     size_t start_in_store = 0;
@@ -110,7 +110,7 @@ public:
         
     static size_t get_number(){ return log_number; }
     
-    static void add_log(const char*, const char*);
+    static void add_log(const char*);
     
     static void free_logs(size_t=0, bool=false);
     
@@ -119,4 +119,10 @@ public:
     static void add_log_entry(const char*);
     
     static void append_log_info(const char*);
+    
+    static void add_entry_in_buffer(const char*);
+    
+    static void add_log_in_buffer(const char*);
+    
+    static void commit_buffer();
 };

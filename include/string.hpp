@@ -73,6 +73,24 @@ inline void copy_string(char *target, const char *source, size_t dest_max_length
     *target = '\0';
 }
 
+/**
+ * 
+ * @param dest
+ * @param source
+ * @param max_length : is the buffer size of dest when it was declared
+ */
+extern "C" NONNULL
+inline void copy_string_nl(char *target, const char *source, size_t dest_max_length = STR_MAX_LENGTH) {
+    uint32 length = 0;
+    while (*source && length<dest_max_length) {
+        *target = *source;
+        source++;
+        target++;
+        length++;
+    }
+    *target = '\n';
+}
+
 //extern "C" NONNULL
 //inline void *memcpy(void *d, void const *s, size_t n) {
 //    mword dummy;

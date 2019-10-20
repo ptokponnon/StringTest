@@ -442,12 +442,12 @@ void Block::defragment() {
  */
 void String::append(const char* s){
     size_t len1 = strlen(buffer->start), len2 = strlen(s);
-    Block* old_block = buffer;
+    Block* old_buffer = buffer;
     buffer = Block::alloc(len1 + len2 + 2);
-    copy_string(buffer->start, old_block->start, len1);
+    copy_string(buffer->start, old_buffer->start, len1);
     *(buffer->start + len1) = ' ';
     copy_string(buffer->start + len1 + 1, s, len2);
-    delete old_block;
+    old_buffer->~Block();
 }
 
 /**
