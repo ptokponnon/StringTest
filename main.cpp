@@ -13,14 +13,13 @@
 
 #include <cstdlib>
 #include <cstdio>
-#include "log.hpp"
 #include "log_store.hpp"
 #include <csignal> 
 
 using namespace std;
 
 void signal_handler(int signal_num ) { 
-   Log::dump("CTRL C", false, 0); 
+   Logstore::dump("CTRL C", false, 0); 
    exit(0);
 } 
   
@@ -37,20 +36,20 @@ int main(int argc, char** argv) {
     while(1){
         char s[STR_MAX_LENGTH];
         snprintf(s, STR_MAX_LENGTH, "PD %d EC %d", i, i);
-        Log::add_log_in_buffer(s);
+        Logstore::add_log_in_buffer(s);
         int n = rand()%10, l = n ? rand()%n : n; 
         for(int j=0; j<n; j++){
             int k = rand()%3;
             char d[STR_MAX_LENGTH];
             snprintf(d, STR_MAX_LENGTH, "Log_entry %d %s", j, chaine[k]);
-            Log::add_entry_in_buffer(d);
+            Logstore::add_entry_in_buffer(d);
             if(j == l){
                 char s[STR_MAX_LENGTH];
                 snprintf(s, STR_MAX_LENGTH, "Log appended %d", l);
-                Log::add_log_in_buffer(s);
+                Logstore::add_log_in_buffer(s);
             }
         }
-        Log::commit_buffer();
+        Logstore::commit_buffer();
         i++;
     }
 }
