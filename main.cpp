@@ -14,7 +14,6 @@
 #include <cstdlib>
 #include <cstdio>
 #include "log.hpp"
-#include "log_store.hpp"
 #include <csignal> 
 
 using namespace std;

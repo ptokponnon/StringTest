@@ -30,7 +30,7 @@ Logstore::~Logstore() {
  * @param ec_name
  */
 void Logstore::add_log(const char* log){
-    if(!Log::log_on)
+    if(!Log::log_on || !strlen(log))
         return;
     size_t curr = cursor%static_cast<size_t>(LOG_MAX);
     Log *l = &logs[curr];
@@ -74,7 +74,7 @@ void Logstore::free_logs(size_t left, bool in_percent) {
         l->start_in_store = 0; // clear its start_in_store, log_size, numero and
         l->log_size = 0;        // free its memory
         l->numero = 0;
-        l->info->free_block();
+        l->info->free_buffer();
         if(i_start > i_end && i == log_max - 1){ // If we were to round from the last
             i = ~static_cast<size_t>(0ul);
             e = i_end;
@@ -109,7 +109,7 @@ void Logentrystore::free_logentries(size_t f_start, size_t f_end) {
             j_start = f_start%log_entry_max, j_end = f_end%log_entry_max;
     size_t s = j_start, e = j_start < j_end ? j_end : log_entry_max;
     for(size_t j=s; j < e; j++){
-        logentries[j].log_entry->free_block();
+        logentries[j].log_entry->free_buffer();
         if(j_start > j_end && j == log_entry_max - 1){
             j = ~static_cast<size_t>(0ul);
             e = j_end;
@@ -130,10 +130,13 @@ void Logstore::dump(char const *funct_name, bool from_tail, size_t log_depth){
         return;
     size_t log_number = cursor - start, log_max = static_cast<size_t>(LOG_MAX),
         log_entry_number = Logentrystore::get_logentry_total_number();
-    printf("%s Log %lu log entries %lu\n", funct_name, log_number, log_entry_number);
+//    printf("%s Log %lu log entries %lu %s cursor %lu start %lu depth %lu\n", 
+//            funct_name, log_number, log_entry_number, from_tail ? "from_last" : 
+//                "from_first", cursor, start, log_depth);
     if(from_tail){
         size_t i_start = (cursor-1)%log_max, i_end = log_depth ? (cursor - log_depth)%log_max : start%log_max;
         size_t s = i_start, e = i_start > i_end ? i_end : 0;
+//        printf("i_start %lu i_end %lu s %lu e %lu\n", i_start, i_end, s, e);
         for(size_t i = s; i >= e; i--) {
             logs[i].print(false);
             if(i_start < i_end && i == 0){
@@ -194,7 +197,7 @@ void Logentrystore::dump(bool from_tail, size_t from, size_t size){
  * @param log
  */
 void Logstore::add_log_entry(const char* log){
-    if(!Log::log_on)
+    if(!Log::log_on || !strlen(log))
         return;    
     size_t log_max = static_cast<size_t>(LOG_MAX);
     Log* l = &logs[(cursor-1)%log_max];
@@ -230,7 +233,7 @@ void Logentrystore::add_log_entry(const char* log){
  * @param s
  */
 void Logstore::append_log_info(const char* s){
-    if(!Log::log_on)
+    if(!Log::log_on || !strlen(s))
         return;    
     size_t log_max = static_cast<size_t>(LOG_MAX);
     Log* l = &logs[(cursor-1)%log_max];
@@ -243,7 +246,7 @@ void Logstore::append_log_info(const char* s){
  * @param s
  */
 void Logstore::add_log_in_buffer(const char* s){
-    if(!Log::log_on)
+    if(!Log::log_on || !strlen(s))
         return;    
     size_t size = strlen(s); 
     copy_string(Log::log_buffer_cursor, s);    
@@ -256,7 +259,7 @@ void Logstore::add_log_in_buffer(const char* s){
  * @param s
  */
 void Logstore::add_entry_in_buffer(const char* s){
-    if(!Log::log_on)
+    if(!Log::log_on || !strlen(s))
         return;    
     size_t size = strlen(s)+1; // +1 for the final \n
     copy_string_nl(Log::entry_buffer_cursor, s, size);    
@@ -269,11 +272,15 @@ void Logstore::add_entry_in_buffer(const char* s){
 void Logstore::commit_buffer(){
     if(!Log::log_on)
         return;    
+    if(!strlen(Log::log_buffer))
+        return;
     *Log::log_buffer_cursor = '\0';
     add_log(Log::log_buffer);
     memset(Log::log_buffer, 0, Log::log_buffer_cursor - Log::log_buffer + 1);
     Log::log_buffer_cursor = Log::log_buffer;
     
+    if(!strlen(Log::entry_buffer))
+        return;
     *Log::entry_buffer_cursor = '\0';
     size_t log_max = static_cast<size_t>(LOG_MAX);
     Log* l = &logs[(cursor-1)%log_max];

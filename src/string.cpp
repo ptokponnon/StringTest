@@ -27,8 +27,9 @@
 unsigned String::count;
 void* Block::memory;
 unsigned short Block::memory_order = 1;
-size_t Block::tour, Block::memory_size = (1ul << memory_order) * PAGE_SIZE;
-bool Block::has_been_freed, Block::initialized;
+size_t Block::tour, Block::memory_size = (1ul << memory_order) * PAGE_SIZE, 
+        Block::free_memory = Block::memory_size;
+bool Block::reallocated, Block::initialized;
 Block* Block::cursor;
 
 Queue<Block> Block::free_blocks, Block::used_blocks;
@@ -219,16 +220,14 @@ unsigned String::print(char *buffer, const char *fmt, ...) {
  * @return 
  */
 Block* Block::alloc(size_t nb_bytes) {
+    assert(nb_bytes);
     if(!initialized) // If this is the first time it is called
         initialize();
     Block* curr = alloc_from_cursor(nb_bytes);
     if(!curr) {
         curr = free_blocks.head();
         Block *h = free_blocks.head();
-        if(!curr) {
-//            printf("Head Null : No sufficient memory to allocate to string, Tour %lu required %lu\n", tour, nb_bytes);
-            curr = realloc(nb_bytes);
-        } else {
+        if(curr) {
             bool loop_started = false;
             while (curr->size < nb_bytes) {
                 if(loop_started && curr == h) // A complete tour has been done
@@ -240,7 +239,7 @@ Block* Block::alloc(size_t nb_bytes) {
             if (curr->size == nb_bytes) {
                 //No need to create a new block, just dequeue and return it 
                 curr->is_free = false;
-                cursor = curr->next;
+                cursor = (curr == curr->next) ? nullptr : curr->next;
                 assert(free_blocks.dequeue(curr));
                 used_blocks.enqueue(curr);
             } else if (curr->size > nb_bytes) { 
@@ -254,10 +253,16 @@ Block* Block::alloc(size_t nb_bytes) {
             } else {
                 curr = realloc(nb_bytes);
             }
+        } else {
+//            printf("Head Null : No sufficient memory to allocate to string, Tour %lu required %lu\n", tour, nb_bytes);
+            curr = realloc(nb_bytes);
         }
     }
 //    printf("curr %p freeblock %p required %lx left %lx\n", curr->start, free_blocks.head()->start, nb_bytes, left());    
-    has_been_freed = false;
+    if(!reallocated) {
+        free_memory -= nb_bytes;
+    }
+    reallocated = false;
     return curr;    
 }
 
@@ -267,23 +272,28 @@ Block* Block::alloc(size_t nb_bytes) {
  */
 Block* Block::realloc(size_t nb_bytes) {
     // Heap exhausted, free 100% - LOG_PERCENT_TO_BE_LEFT of log to recover fresh memory. 
-    Log::free_logs(LOG_PERCENT_TO_BE_LEFT, true);        
-    Logstore::free_logs(LOG_PERCENT_TO_BE_LEFT, true);   
     size_t l = left(), s = free_blocks.size();
     printf("No sufficient memory to allocate to string, Tour %lu required %lu "
-            "left %lu size %lu moyenne %lu\n", tour, nb_bytes, l, s, l/s);
-    if(left() / free_blocks.size() < 200)
+            "free_memory %lu left %lu nbBlocks %lu moyenne %luo\n", tour, nb_bytes, 
+            free_memory, l, s, s ? l/s : 0);
+    assert(l == free_memory);
+    Log::free_logs(LOG_PERCENT_TO_BE_LEFT, true);        
+    Logstore::free_logs(LOG_PERCENT_TO_BE_LEFT, true);   
+    l = left(); s = free_blocks.size(); 
+    assert(s > 0);// s should > 0
+    printf("After free %lu left %lu nbBlocks %lu moyenne %luo\n", free_memory, l, s, s ? l/s : 0);
+    assert(free_memory == l); 
+    if(l / s < static_cast<size_t>(STR_MAX_LENGTH*(memory_order + 
+            static_cast<unsigned short>(PAGE_BITS)))){
         defragment();        
+        print();
+    }
     tour++;
     cursor = free_blocks.head();
-    if(has_been_freed) {
-        if(left() > 90 * memory_size / 100)
-        //Defragmentation needed
-        defragment();
-        else 
-            die("free_logs didn't solve space problem");
+    if(reallocated) {
+        die("free_logs() (and may be defragment()) didn't solve space problem");
     }
-    has_been_freed = true;
+    reallocated = true;
     // Try to alloc again. This should succed.
     return alloc(nb_bytes);
 }
@@ -300,7 +310,7 @@ Block* Block::alloc_from_cursor(size_t nb_bytes) {
     if (cursor->size == nb_bytes) {
 // curr->size == nb_of_bytes: No need to create a new block, just dequeue and return it 
         Block *b = cursor;
-        cursor = cursor->next;
+        cursor = (cursor == cursor->next) ? nullptr : cursor->next; 
         b->is_free = false;
         assert(free_blocks.dequeue(b));
         used_blocks.enqueue(b);
@@ -326,6 +336,7 @@ Block* Block::alloc_from_cursor(size_t nb_bytes) {
  */
 void Block::free() {
     bool to_be_deleted = false; // to record if this block is to be deleted (mergeable) 
+    free_memory += size; // this->size may be modified in this function, so do this quickly
     used_blocks.dequeue(this);
     Block *curr = free_blocks.head(), *h = free_blocks.head(), *curr_prev = nullptr;
 //    assert(curr && !is_free);
@@ -376,7 +387,7 @@ void Block::free() {
  * @return 
  */
 size_t Block::left() { 
-    if(!free_blocks.head())
+    if(!initialized)
         initialize();
     size_t total_size = 0;
     Block *curr = free_blocks.head(), *n = nullptr;
@@ -396,7 +407,7 @@ void Block::print() {
     Block *b = free_blocks.head(), *n = nullptr;
     if(!b)
         return;
-    printf("==========================================================\n");
+    printf("Beging ==========================================================\n");
     while (b) {
         printf("Prev %p :: B %p (%p -> %p : %lx) :: Next %p\n", 
                 b->prev, b, b->start, b->start + b->size, b->size, b->next);
@@ -404,21 +415,18 @@ void Block::print() {
         assert(n->prev == b);
         b = (n == free_blocks.head()) ? nullptr : n;
     }
+    printf("End    ==========================================================\n");    
 }
 
 void Block::defragment() {
     Block *b = used_blocks.head(), *h = used_blocks.head(), *n = nullptr;
     char* start_ptr1 = reinterpret_cast<char*>(memory);
     size_t total_used_size = 0;
-    while(b) {
-        total_used_size += b->size;
-        n = b->next;
-        b = (n == h) ? nullptr : n;
-    }
-    char bloc[total_used_size];
+    char bloc[memory_size - free_memory];
     char* start_ptr2 = bloc;
     b = used_blocks.head(); h = used_blocks.head(); n = nullptr;
     while(b) {
+        total_used_size += b->size;
         copy_string(start_ptr2, b->start, b->size);
         b->start = start_ptr1;
         start_ptr1 += b->size; 
@@ -426,6 +434,7 @@ void Block::defragment() {
         n = b->next;
         b = (n == h) ? nullptr : n;
     }
+    assert(total_used_size == memory_size - free_memory);
     memset(memory, 0, memory_size);
     memcpy(memory, reinterpret_cast<void*>(bloc), total_used_size);
     
@@ -441,13 +450,20 @@ void Block::defragment() {
  * @param s
  */
 void String::append(const char* s){
-    size_t len1 = strlen(buffer->start), len2 = strlen(s);
-    Block* old_buffer = buffer;
-    buffer = Block::alloc(len1 + len2 + 2);
-    copy_string(buffer->start, old_buffer->start, len1);
-    *(buffer->start + len1) = ' ';
-    copy_string(buffer->start + len1 + 1, s, len2);
-    old_buffer->~Block();
+    if(buffer) { // This string didn't have a buffer yet, we shall allocate one with 1 byte
+        size_t len1 = length, len2 = strlen(s);
+        length += len2 + 1;
+        Block* old_buffer = buffer;
+        buffer = Block::alloc(length + 1);
+        copy_string(buffer->start, old_buffer->start, len1);
+        *(buffer->start + len1) = ' ';
+        copy_string(buffer->start + len1 + 1, s, len2);
+        old_buffer->~Block();
+    } else {
+        length = strlen(s);
+        buffer = Block::alloc(length + 1);
+        copy_string(buffer->start, s, length);
+    }
 }
 
 /**
@@ -466,9 +482,10 @@ void String::replace_with(const char* s) {
 /**
  * Frees this string's buffer but do not destroy it.
  */
-void String::free_block() {
-    assert(buffer);
-    buffer->~Block();
+void String::free_buffer() {
+    if(buffer) {
+        buffer->~Block();
+    }
     buffer = nullptr;
     length = 0;
 }

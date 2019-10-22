@@ -37,7 +37,7 @@ Log::Log(const char* title) : prev(nullptr), next(nullptr){
  * @param ec_name
 */
 void Log::add_log(const char* s){
-    if(!log_on)
+    if(!log_on  || !strlen(s))
         return;
     if(log_number > LOG_MAX)
         free_logs(LOG_PERCENT_TO_BE_LEFT, true);
@@ -113,7 +113,7 @@ void Log::dump(char const *funct_name, bool from_tail, size_t log_depth){
  * @param log
  */
 void Log::add_log_entry(const char* log){
-    if(!log_on)
+    if(!log_on || !strlen(log))
         return;    
     Log *l = logs.tail();
     assert(l);
@@ -129,12 +129,12 @@ void Log::add_log_entry(const char* log){
  * and allocating a new one, wide enough, to hold the the old and the new strings
  * @param s
  */
-void Log::append_log_info(const char* i){
-    if(!log_on)
+void Log::append_log_info(const char* s){
+    if(!log_on || !strlen(s))
         return;    
     Log *l = logs.tail();
     assert(l);
-    l->info->append(i);
+    l->info->append(s);
 }
 
 /**
@@ -174,7 +174,7 @@ Log_entry::Log_entry(char* l) {
  * @param s
  */
 void Log::add_log_in_buffer(const char* s){
-    if(!Log::log_on)
+    if(!Log::log_on || !strlen(s))
         return;    
     size_t size = strlen(s); 
     copy_string(Log::log_buffer_cursor, s);    
@@ -187,7 +187,7 @@ void Log::add_log_in_buffer(const char* s){
  * @param s
  */
 void Log::add_entry_in_buffer(const char* s){
-    if(!Log::log_on)
+    if(!Log::log_on || !strlen(s))
         return;    
     size_t size = strlen(s)+1; // +1 for the final \n
     copy_string_nl(Log::entry_buffer_cursor, s, size);    
@@ -200,11 +200,15 @@ void Log::add_entry_in_buffer(const char* s){
 void Log::commit_buffer(){
     if(!Log::log_on)
         return;    
+    if(!strlen(Log::log_buffer))
+        return;
     *Log::log_buffer_cursor = '\0';
     add_log(Log::log_buffer);
     memset(Log::log_buffer, 0, Log::log_buffer_cursor - Log::log_buffer + 1);
     Log::log_buffer_cursor = Log::log_buffer;
     
+    if(!strlen(Log::entry_buffer))
+        return;
     *Log::entry_buffer_cursor = '\0';
     Log* l = logs.tail();
     assert(l);
