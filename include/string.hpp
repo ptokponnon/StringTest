@@ -190,8 +190,8 @@ class Block {
 private:
     static void *memory;       // Our heap start pointer
     static unsigned short memory_order; // 2^memory_order *4Ko will be dedicated to this heap 
-    static size_t tour, memory_size;  
-    static bool has_been_freed, initialized;
+    static size_t tour, memory_size, free_memory;  
+    static bool reallocated, initialized;
     static Block* cursor;
     static Queue<Block> free_blocks, used_blocks;  // circular list of available blocks
     
@@ -291,7 +291,7 @@ public:
     }
     void append(const char*);
     void replace_with(const char*);
-    void free_block();
+    void free_buffer();
     
     FORMAT (2,3)
     static unsigned print (char *, char const *, ...);

@@ -42,7 +42,7 @@
 #define SPN_GSI         (SPN_IPI + NUM_IPI)
 
 #define MAX_INSTRUCTION 0x100000
-#define STR_MAX_LENGTH  80
+#define STR_MAX_LENGTH  120
 #define LOG_MAX         10000
 #define LOG_PERCENT_TO_BE_LEFT 10
 #define LOG_ENTRY_MAX   20*LOG_MAX
